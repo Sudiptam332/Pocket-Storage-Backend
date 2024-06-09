@@ -57,10 +57,6 @@ router.delete("/deletedocs/:id", fetchuser, async (req, res) => {
       return res.status(401).json({ msg: "Not authorized" });
     }
 
-    const fileName = doc.url.split("/").pop();
-    const file = bucket.file(fileName);
-    await file.delete();
-
     doc = await Doc.findByIdAndDelete(req.params.id);
     res.json({ Success: "Document has been deleted.", doc: doc });
   } catch (error) {
