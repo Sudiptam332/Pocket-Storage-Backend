@@ -1,21 +1,29 @@
 const express = require("express");
 const router = express.Router();
 const multer = require("multer");
+const { CloudinaryStorage } = require("multer-storage-cloudinary");
+const cloudinary = require("../cloudinary");
 const Photo = require("../models/Photo");
 const fetchuser = require("../middleware/fetchuser");
-const fs = require("fs");
-const path = require("path");
 
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    const uploadDir = "uploads/";
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir);
+const storage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: async (req, file) => {
+    let format;
+    if (file.mimetype === "application/pdf") {
+      format = "pdf";
+    } else if (file.mimetype === "image/jpeg") {
+      format = "jpg";
+    } else if (file.mimetype === "image/png") {
+      format = "png";
+    } else {
+      throw new Error("Unsupported file format");
     }
-    cb(null, uploadDir);
-  },
-  filename: function (req, file, cb) {
-    cb(null, Date.now() + "-" + file.originalname);
+    return {
+      folder: "uploads",
+      format: format,
+      public_id: Date.now() + "-" + file.originalname,
+    };
   },
 });
 
@@ -56,15 +64,12 @@ router.delete("/deletephoto/:id", fetchuser, async (req, res) => {
       return res.status(401).json({ msg: "Not authorized" });
     }
 
+    // Delete photo from Cloudinary
+    const publicId = photo.url.split("/").pop().split(".")[0]; // Extract public ID from URL
+    await cloudinary.uploader.destroy(publicId);
+
     photo = await Photo.findByIdAndDelete(req.params.id);
     res.json({ Success: "Photo has been deleted.", photo: photo });
-
-    // Optionally, delete the file from the filesystem
-    fs.unlink(path.join(__dirname, "..", photo.url), (err) => {
-      if (err) console.error("Error while deleting file:", err.message);
-    });
-
-    res.json({ msg: "Photo removed" });
   } catch (error) {
     console.error("Error while deleting photo:", error.message);
     res.status(500).json({ error: "Server Error" });
